@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from marshmallow_sqlalchemy import ModelConversionError, SQLAlchemyAutoSchema
 from sqlalchemy import event
 from sqlalchemy.orm import mapper
+from typing import List
 from sqlalchemy_serializer import SerializerMixin
 
 
@@ -29,7 +30,7 @@ class Project(AuditableMixin,db.Model,SerializerMixin):
     __bind_key__ = 'psm'
     __tablename__ = 'psm_gantt_project'
     
-    serialize_only = ('product_id', 'model_name', 'bu', 'application','mapp_chat_sn','product_classification','owner','phase','work_time','project_type','product_group','project_state','template')
+    serialize_only = ('product_id', 'model_name', 'bu', 'application','mapp_chat_sn','product_classification','owner','phase','work_time','project_type','product_group','project_state','template','projectOwnerDisplay','last_modified_date')
     
     product_id = db.Column(db.String, primary_key=True)
     model_name = db.Column(db.String, nullable=False)
@@ -38,7 +39,7 @@ class Project(AuditableMixin,db.Model,SerializerMixin):
     mapp_chat_sn = db.Column(db.String)
     product_classification = db.Column(db.String)
     project_owner = Column(String, ForeignKey('Employee.emp_no'))
-    owner = relationship("Employee", uselist=False, foreign_keys=[project_owner], primaryjoin="and_(Employee.emp_no==Project.project_owner)")
+    owner: Mapped["Employee"] = relationship("Employee", uselist=False, foreign_keys=[project_owner], primaryjoin="and_(Employee.emp_no==Project.project_owner)")
     
     phase = db.Column(db.String)
     work_time = db.Column(db.String)
@@ -46,7 +47,10 @@ class Project(AuditableMixin,db.Model,SerializerMixin):
     product_group = db.Column(db.String)
     project_state = db.Column(db.String)
     template_id = Column(BigInteger, ForeignKey('ProjectTemplate.id'))
-    template = relationship("ProjectTemplate", uselist=False, foreign_keys=[template_id], primaryjoin="and_(ProjectTemplate.id==Project.template_id)" )
+    template: Mapped["ProjectTemplate"] = relationship("ProjectTemplate", uselist=False, foreign_keys=[template_id], primaryjoin="and_(ProjectTemplate.id==Project.template_id)" )
+    
+    def projectOwnerDisplay(self):
+        return self.owner.name +'('+self.owner.emp_no+')'
 
 @dataclass
 class Employee(db.Model,SerializerMixin):
@@ -66,7 +70,7 @@ class Employee(db.Model,SerializerMixin):
     real_dept_name = db.Column(db.String)
     ad_account = db.Column(db.String)
     mail_to = db.Column(db.String)
-    roles = relationship(
+    roles: Mapped[List["UserRole"]] = relationship(
         'UserRole',
         primaryjoin='Employee.emp_no == UserRole.user_id',
         back_populates='user',

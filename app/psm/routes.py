@@ -62,12 +62,26 @@ def queryProjects():
     
     return Response(result.to_json(orient="records", force_ascii=False), mimetype='application/json')
 
-@psm.route('/queryProjectByParams')
+@psm.route('/api/projects/queryProjectByParams', methods=['POST'])
 def queryProjectByParams():
-    state = request.args.get('status')
-    product_id = request.args.get('product_id')
-    sqlResult = db.session.query(Project).join(Employee, Project.owner).filter(Employee.name== "沈建慶")
+    content = request.json
+    print(content)
+    criteria = db.session.query(Project)
+    if('bu' in content):
+        criteria = criteria.filter(Project.bu == content['bu'])   
+    if('application' in content):
+        criteria = criteria.filter(Project.application == content['application'])
+    if('projectOwnerEmpNo' in content):
+        criteria = criteria.filter(Project.owner.has(emp_no = content['projectOwnerEmpNo']))
+    if('projectState' in content):
+        criteria = criteria.filter(Project.project_state == content['projectState'])
+    if('productId' in content):
+        criteria = criteria.filter( Project.product_id.like ('%'+content['productId']+'%') )
+    if('modelName' in content):
+        criteria = criteria.filter( Project.model_name.like ('%'+content['modelName']+'%') )                           
+    #sqlResult = db.session.query(Project).join(Employee, Project.owner).filter(Employee.name== "沈建慶")
     #sqlResult = db.session.query(Project).filter(Project.owner.has( Employee.name== "沈建慶"))
+    sqlResult = criteria.all()
     result = []
     for row in sqlResult:
        result.append(row.to_dict())
