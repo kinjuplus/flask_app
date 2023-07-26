@@ -12,7 +12,8 @@ from sqlalchemy import event
 from sqlalchemy.orm import mapper
 from typing import List
 from sqlalchemy_serializer import SerializerMixin
-
+from datetime import datetime
+import re
 
     
 class AuditableMixin(object):
@@ -30,7 +31,7 @@ class Project(AuditableMixin,db.Model,SerializerMixin):
     __bind_key__ = 'psm'
     __tablename__ = 'psm_gantt_project'
     
-    serialize_only = ('product_id', 'model_name', 'bu', 'application','mapp_chat_sn','product_classification','owner','phase','work_time','project_type','product_group','project_state','template','projectOwnerDisplay','last_modified_date','memberRoleList','taskList')
+    serialize_only = ('product_id', 'model_name', 'bu', 'application','mapp_chat_sn','product_classification','owner','phase','work_time','project_type','product_group','project_state','template','projectOwnerDisplay','last_modified_date','memberRoleList','taskList','assignments')
     
     product_id = db.Column(db.String, primary_key=True)
     model_name = db.Column(db.String, nullable=False)
@@ -161,7 +162,34 @@ class ProjectTask(AuditableMixin,db.Model,SerializerMixin):
     )
 
     def getDisplayColor(self):
-        return 'red'
+        if(self.project.project_state and self.project.project_state != 'OPEN'):
+            return ''
+        if(self.actual_end_date is not None or self.parent is None or re.search("^DR\d{1}$", self.name) or self.children is None or self.children == []):
+            return ''
+        current_dateTime = datetime.now()
+        if(self.end_date is not None):
+            difference = self.end_date - current_dateTime
+            if (self.actual_end_date is None and (difference.days >= 0 and difference.days <=3) and (self.actual_end_confirm is None or  not self.actual_end_confirm) ):
+                return 'yellow'
+            if(difference.days < 0 and self.actual_end_date is None):
+                return 'red'
+            if(self.actual_end_date is not None):
+                return ''
+
+        if(self.start_date is not None):
+            difference = self.start_date - current_dateTime
+            if(difference.days >=0 and self.actual_start_date is None and  difference.days <=3):
+                return 'yellow'
+            if(difference.days < 0 and self.actual_start_date is None):
+                return 'red'
+            if(self.actual_start_date is not None):
+                if(self.actual_start_date > self.start_date and (self.actual_start_confirm is None or not self.actual_start_confirm)):
+                    return 'yellow'
+                if(self.actual_start_date <= self.start_date and (self.actual_start_confirm is None or not self.actual_start_confirm)):
+                    return 'blue'
+            if(self.actual_start_confirm is not None and self.actual_start_confirm):
+                return ''
+        return ''
 
 
 class ProjectMemberRole(AuditableMixin,db.Model,SerializerMixin):
@@ -207,7 +235,7 @@ class ProjectMember(AuditableMixin,db.Model,SerializerMixin):
 class ProjectAssignment(db.Model,SerializerMixin):
     __bind_key__ = 'psm'
     __tablename__ = 'psm_gantt_project_assignment'
-    serialize_only = ('id', 'units')
+    serialize_only = ('id', 'units','member','task')
     id = db.Column(db.BigInteger, primary_key=True)
     units = db.Column(db.Integer)
     product_id = db.Column(db.String, db.ForeignKey('project.product_id'), nullable=False)
@@ -216,6 +244,18 @@ class ProjectAssignment(db.Model,SerializerMixin):
         primaryjoin='Project.product_id == ProjectAssignment.product_id',
         back_populates='assignments',
         foreign_keys=product_id
+    )
+    member_id = db.Column(db.BigInteger, db.ForeignKey('member.id'), nullable=False)
+    member = relationship(
+        'ProjectMember',
+        primaryjoin='ProjectMember.id == ProjectAssignment.member_id',
+        foreign_keys=member_id
+    )
+    task_id = db.Column(db.BigInteger, db.ForeignKey('task.id'), nullable=False)
+    task = relationship(
+        'ProjectTask',
+        primaryjoin='ProjectTask.id == ProjectAssignment.task_id',
+        foreign_keys=task_id
     )
     
 
