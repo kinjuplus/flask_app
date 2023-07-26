@@ -84,9 +84,17 @@ def queryProjectByParams():
     sqlResult = criteria.all()
     result = []
     for row in sqlResult:
-       result.append(row.to_dict())
+       result.append(row.to_dict(only=('product_id', 'model_name', 'bu','project_type','application','projectOwnerDisplay','last_modified_date')))
     json_string = json.dumps(result,ensure_ascii = False)
     return Response(json_string,content_type="application/json; charset=utf-8" )
+
+@psm.route('/api/projects/getProjectById', methods=['GET'])
+def getProjectById():
+    product_id = request.args.get('product_id')
+    sqlResult = db.session.query(Project).get(product_id)
+    json_string = json.dumps(sqlResult.to_dict(),ensure_ascii = False)
+    return Response(json_string,content_type="application/json; charset=utf-8" )
+
 
 @psm.route('/api/employees/queryEmpByEmpNo')
 def queryEmpByEmpNo():

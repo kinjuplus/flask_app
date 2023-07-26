@@ -30,7 +30,7 @@ class Project(AuditableMixin,db.Model,SerializerMixin):
     __bind_key__ = 'psm'
     __tablename__ = 'psm_gantt_project'
     
-    serialize_only = ('product_id', 'model_name', 'bu', 'application','mapp_chat_sn','product_classification','owner','phase','work_time','project_type','product_group','project_state','template','projectOwnerDisplay','last_modified_date')
+    serialize_only = ('product_id', 'model_name', 'bu', 'application','mapp_chat_sn','product_classification','owner','phase','work_time','project_type','product_group','project_state','template','projectOwnerDisplay','last_modified_date','memberRoleList','taskList')
     
     product_id = db.Column(db.String, primary_key=True)
     model_name = db.Column(db.String, nullable=False)
@@ -49,10 +49,31 @@ class Project(AuditableMixin,db.Model,SerializerMixin):
     template_id = Column(BigInteger, ForeignKey('ProjectTemplate.id'))
     template: Mapped["ProjectTemplate"] = relationship("ProjectTemplate", uselist=False, foreign_keys=[template_id], primaryjoin="and_(ProjectTemplate.id==Project.template_id)" )
     
+    memberRoleList: Mapped[List["ProjectMemberRole"]] = relationship(
+        'ProjectMemberRole',
+        primaryjoin='Project.product_id == ProjectMemberRole.product_id',
+        back_populates='project',
+        foreign_keys='ProjectMemberRole.product_id'
+    )
+
+    taskList: Mapped[List["ProjectTask"]] = relationship(
+        'ProjectTask',
+        primaryjoin='Project.product_id == ProjectTask.product_id',
+        back_populates='project',
+        foreign_keys='ProjectTask.product_id'
+    )
+
+    assignments: Mapped[List["ProjectAssignment"]] = relationship(
+        'ProjectAssignment',
+        primaryjoin='Project.product_id == ProjectAssignment.product_id',
+        back_populates='project',
+        foreign_keys='ProjectAssignment.product_id'
+    )
+
     def projectOwnerDisplay(self):
         return self.owner.name +'('+self.owner.emp_no+')'
 
-@dataclass
+
 class Employee(db.Model,SerializerMixin):
     __bind_key__ = 'psm'
     __tablename__ = 'hr_emp_reorg'
@@ -79,7 +100,7 @@ class Employee(db.Model,SerializerMixin):
     def as_dict(self):
        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
 
-@dataclass
+
 class UserRole(db.Model,SerializerMixin):
     __bind_key__ = 'psm'
     __tablename__ = 'psm_user_role'
@@ -96,6 +117,108 @@ class UserRole(db.Model,SerializerMixin):
     )
     def as_dict(self):
        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+
+class ProjectTask(AuditableMixin,db.Model,SerializerMixin):
+    __bind_key__ = 'psm'
+    __tablename__ = 'psm_gantt_project_task'
+
+    serialize_only = ('id','name','description','duration','start_date','end_date','actual_start_date','actual_end_date','effort','effort_unit',
+                      'duration_unit','percent_done','scheduling_mode','note','manually_scheduled','effort_driven','expanded',
+                      'actual_start_confirm','actual_end_confirm','constraint_type','constraint_date','ems_doc_no','key_word','children','getDisplayColor')
+
+    id = db.Column(db.BigInteger, primary_key=True)
+    name = db.Column(db.String)
+    description = db.Column(db.String)
+    duration = db.Column(db.Numeric)
+    start_date = db.Column(db.DateTime)
+    end_date = db.Column(db.DateTime)
+    actual_start_date = db.Column(db.DateTime)
+    actual_end_date = db.Column(db.DateTime)
+    effort = db.Column(db.Numeric)
+    effort_unit = db.Column(db.String, default='hour')
+    duration_unit = db.Column(db.String, default='day')
+    percent_done = db.Column(db.Numeric, default=0)
+    scheduling_mode = db.Column(db.String)
+    note = db.Column(db.String)
+    manually_scheduled = db.Column(db.Boolean, default=False)
+    effort_driven = db.Column(db.Boolean, default=False)
+    expanded = db.Column(db.Boolean)
+    actual_start_confirm = db.Column(db.Boolean, default=False)
+    actual_end_confirm = db.Column(db.Boolean, default=False)
+    constraint_type = db.Column(db.String)
+    constraint_date = db.Column(db.DateTime)
+    ems_doc_no = db.Column(db.String)
+    key_word = db.Column(db.String)
+    parent_id = mapped_column(BigInteger, ForeignKey("psm_gantt_project_task.id"))
+    children = relationship("ProjectTask", back_populates="parent")
+    parent = relationship("ProjectTask", back_populates="children", remote_side=[id])
+    product_id = db.Column(db.String, db.ForeignKey('project.product_id'), nullable=False)
+    project = relationship(
+        'Project',
+        primaryjoin='ProjectTask.product_id == Project.product_id',
+        back_populates='taskList',
+        foreign_keys=product_id
+    )
+
+    def getDisplayColor(self):
+        return 'red'
+
+
+class ProjectMemberRole(AuditableMixin,db.Model,SerializerMixin):
+    __bind_key__ = 'psm'
+    __tablename__ = 'psm_gantt_project_role'
+    serialize_only = ('id', 'name','product_id','memberList')
+    id = db.Column(db.String, primary_key=True)
+    name = db.Column(db.String)
+    product_id = db.Column(db.String, db.ForeignKey('project.product_id'), nullable=False)
+    project = relationship(
+        'Project',
+        primaryjoin='ProjectMemberRole.product_id == Project.product_id',
+        back_populates='memberRoleList',
+        foreign_keys=product_id
+    )
+    memberList: Mapped[List["ProjectMember"]] = relationship(
+        'ProjectMember',
+        primaryjoin='ProjectMemberRole.id == ProjectMember.role_id',
+        back_populates='role',
+        foreign_keys='ProjectMember.role_id'
+    )
+
+
+class ProjectMember(AuditableMixin,db.Model,SerializerMixin):
+    __bind_key__ = 'psm'
+    __tablename__ = 'psm_gantt_project_member'
+    serialize_only = ('id', 'employee')
+    id = db.Column(db.String, primary_key=True)
+    emp_no = db.Column(db.String, db.ForeignKey('employee.emp_no'), nullable=False)
+    employee = relationship(
+        'Employee',
+        primaryjoin='ProjectMember.emp_no == Employee.emp_no',
+        foreign_keys=emp_no
+    )
+    role_id = db.Column(db.String, db.ForeignKey('role.id'), nullable=False)
+    role = relationship(
+        'ProjectMemberRole',
+        primaryjoin='ProjectMemberRole.id == ProjectMember.role_id',
+        back_populates='memberList',
+        foreign_keys=role_id
+    )
+
+class ProjectAssignment(db.Model,SerializerMixin):
+    __bind_key__ = 'psm'
+    __tablename__ = 'psm_gantt_project_assignment'
+    serialize_only = ('id', 'units')
+    id = db.Column(db.BigInteger, primary_key=True)
+    units = db.Column(db.Integer)
+    product_id = db.Column(db.String, db.ForeignKey('project.product_id'), nullable=False)
+    project = relationship(
+        'Project',
+        primaryjoin='Project.product_id == ProjectAssignment.product_id',
+        back_populates='assignments',
+        foreign_keys=product_id
+    )
+    
+
 
 class ProjectTemplate(AuditableMixin,db.Model,SerializerMixin):
     __bind_key__ = 'psm'
